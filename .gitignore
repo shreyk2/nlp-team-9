@@ -1,0 +1,5 @@
+.venv
+.env
+venv
+__pycache__*
+nlp_team_9.egg-info
