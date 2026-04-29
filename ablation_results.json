@@ -1,0 +1,21 @@
+{
+  "model": "google/gemma-2-2b-it",
+  "extraction_layer": 25,
+  "n_extraction": 256,
+  "n_safety_eval": 100,
+  "utility_samples": 200,
+  "baseline": {
+    "asr": 0.01,
+    "boolq": 0.85,
+    "hellaswag": 0.485,
+    "arc_challenge": 0.525,
+    "truthfulqa_mc1": 0.33
+  },
+  "ablated": {
+    "asr": 0.84,
+    "boolq": 0.865,
+    "hellaswag": 0.47,
+    "arc_challenge": 0.515,
+    "truthfulqa_mc1": 0.31
+  }
+}
