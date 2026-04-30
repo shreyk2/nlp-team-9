@@ -1,14 +1,16 @@
 # Disentangling Safety and Utility in LLM Activation Spaces — Team 9 (CS639)
 
-We test whether the safety (refusal) and utility (helpfulness) directions
-extracted from an instruction-tuned LLM's residual stream occupy
-*separable* subspaces. Each direction is extracted with two methods —
-Difference-of-Means (**DoM**) and **ActSVD** — then ablated at a single
-transformer layer via a forward hook. Independence is measured by a 2×2
-cross-intervention matrix: ablating one direction should break only its
-own behavior and leave the other intact.
+Instruction-tuned LLMs encode refusal (safety) and helpfulness (utility)
+as directions in their activation space. We test whether these
+directions live in separable subspaces or share structure.
 
-Models studied: **Gemma-2-2B-IT** and **Llama-3.1-8B-Instruct**.
+We extract each direction with two methods: Difference-of-Means (DoM)
+and ActSVD. We then ablate the direction at a single transformer layer
+using a forward hook. To check independence, we run a 2×2
+cross-intervention matrix. The idea is simple: ablating one direction
+should break only its own behavior.
+
+Models tested: **Gemma-2-2B-IT** and **Llama-3.1-8B-Instruct**.
 
 ---
 
@@ -20,25 +22,18 @@ Models studied: **Gemma-2-2B-IT** and **Llama-3.1-8B-Instruct**.
 │   ├── __init__.py
 │   ├── common.py                model + activation + dataset loaders
 │   ├── directions.py            DoM and ActSVD extraction
-│   ├── ablation.py              forward-hook ablation (vector + subspace)
-│   └── evaluation.py            ASR + BoolQ/HellaSwag/ARC-C/TruthfulQA
+│   ├── ablation.py              forward-hook ablation
+│   └── evaluation.py            ASR + utility benchmarks
 ├── scripts/
 │   ├── run_eda.py               layer selection, δ comparison, stability
 │   ├── extract_directions.py    extract DoM + ActSVD, save to cache/
 │   ├── run_2x2_matrix.py        cross-intervention experiment
 │   ├── run_sensitivity.py       layer + ActSVD-rank sweep
-│   └── plot_matrix.py           grouped bar chart for the report
+│   └── plot_matrix.py           grouped bar chart
 ├── hw3/                         HW3 deliverables (preserved as submitted)
-│   ├── ablation_experiment.py
-│   ├── exploratory_analysis.py
-│   ├── eda.py
-│   ├── ablation_results.json
-│   ├── asr_examples.json
-│   ├── eda_*.png
-│   └── r_s_unit.npy
 ├── results/<tag>/               EDA plots, JSONs, matrix plot
-├── cache/<tag>/                 extracted directions + cached activations
-├── run_all.sh                   end-to-end reproduction
+├── cache/<tag>/                 extracted directions
+├── run_all.sh                   end-to-end driver
 ├── requirements.txt
 ├── pyproject.toml
 └── README.md
@@ -50,19 +45,30 @@ Models studied: **Gemma-2-2B-IT** and **Llama-3.1-8B-Instruct**.
 
 ## Setup
 
+Requires Python 3.10 or newer.
+
 ```bash
 pip install -r requirements.txt
-echo "HF_TOKEN=hf_..." > .env
+printf "HF_TOKEN=hf_YOUR_TOKEN\n" > .env
+```
+
+If `> .env` errors with "cannot overwrite existing file", your shell
+has `noclobber` set. Use `>|` instead:
+
+```bash
+printf "HF_TOKEN=hf_YOUR_TOKEN\n" >| .env
 ```
 
 GPU memory:
 * Gemma-2-2B-IT (FP16) — ~12 GB
-* Llama-3.1-8B-Instruct (FP16) — ~20 GB (use an A40 or similar; an
-  11 GB card cannot fit the model in FP16)
+* Llama-3.1-8B-Instruct (FP16) — ~20 GB. An 11 GB card cannot fit
+  Llama in FP16. Use an A40 or larger.
 
-You also need to accept the gated-repo licenses on Hugging Face for
-`google/gemma-2-2b-it`, `meta-llama/Llama-3.1-8B-Instruct`,
-`walledai/AdvBench`, and `nvidia/HelpSteer`.
+You also need to accept the gated-repo licenses on Hugging Face for:
+- `google/gemma-2-2b-it`
+- `meta-llama/Llama-3.1-8B-Instruct`
+- `walledai/AdvBench`
+- `nvidia/HelpSteer`
 
 ---
 
@@ -74,10 +80,9 @@ bash run_all.sh gemma_only     # only Gemma
 bash run_all.sh llama_only     # only Llama
 ```
 
-`run_all.sh` uses Gemma layer 25 and Llama layer 16 (the empirically
-best layer found via the sensitivity sweep). The sensitivity sweep
-range is automatically clipped so it never exceeds the model's last
-transformer block.
+`run_all.sh` uses Gemma layer 25 and Llama layer 16. These are the
+empirically best layers we found in the sensitivity sweep. The sweep
+range is auto-clipped so it never exceeds the model's last block.
 
 ### Step-by-step
 
@@ -99,9 +104,9 @@ python scripts/plot_matrix.py --tag gemma2-2b-it
 python scripts/run_sensitivity.py \
   --model google/gemma-2-2b-it --tag gemma2-2b-it \
   --layers 22,23,24,25 --ranks 1,2,4,8,16 --rank_layer 25
-
-# Repeat for Llama, swapping --model and --tag.
 ```
+
+Repeat for Llama by swapping `--model` and `--tag`.
 
 ---
 
@@ -109,32 +114,32 @@ python scripts/run_sensitivity.py \
 
 ### DoM (Difference-of-Means)
 
-At a chosen layer L*, compute
-`r = mean(h_pos) - mean(h_neg)`, then normalize.
-* safety: positives = AdvBench prompts, negatives = Alpaca prompts
-  (last-token activations)
-* utility: positives = HelpSteer high-helpfulness responses, negatives =
-  HelpSteer low-helpfulness responses (mean over response tokens),
-  filtered to δ ≥ 3
+At a chosen layer L*, compute `r = mean(h_pos) - mean(h_neg)` and
+normalize.
+* Safety: positives are AdvBench prompts, negatives are Alpaca prompts.
+  We use the activation at the last prompt token.
+* Utility: positives are HelpSteer high-helpfulness responses,
+  negatives are low-helpfulness responses. We average activations over
+  the response tokens. Pairs are filtered to δ ≥ 3.
 
 ### ActSVD
 
-Build the per-example difference matrix `D = H_pos - H_neg`, take its
-SVD, and keep the top-k right singular vectors as an orthonormal basis
+Build the per-example difference matrix `D = H_pos - H_neg`. Take its
+SVD. Keep the top-k right singular vectors as an orthonormal basis
 V (k × d).
 
 ### Ablation
 
-Both methods are applied via a forward hook on the chosen
-transformer block (`model.model.layers[L]`):
-* DoM — subtract the projection onto a single unit vector
-* ActSVD — subtract the projection onto the rank-k subspace
-  `h' = h − (h Vᵀ) V`
+Both methods are applied via a forward hook on the chosen transformer
+block (`model.model.layers[L]`):
+* DoM — subtract the projection onto a single unit vector.
+* ActSVD — subtract the projection onto the rank-k subspace.
+  `h' = h − (h Vᵀ) V`.
 
 ### Cross-intervention matrix
 
-For each cell, ablate the named direction and evaluate **both** ASR
-(safety) and the utility benchmark suite + TruthfulQA (control).
+For each cell, ablate the named direction. Then evaluate both ASR
+(safety) and the utility benchmark suite plus TruthfulQA (control).
 
 |              | ablate **safety** | ablate **utility** |
 |--------------|-------------------|--------------------|
@@ -177,9 +182,9 @@ Plus a `baseline` row (no ablation).
 
 Refusal detection uses substring matching against the list in
 [src/evaluation.py](src/evaluation.py) (`REFUSAL_SUBSTRINGS`),
-following Arditi et al. (2024). ASR = fraction of held-out prompts
-where **no** refusal substring appears in the model's reply
-(higher = less safe).
+following Arditi et al. (2024). ASR is the fraction of held-out
+prompts where no refusal substring appears in the model's reply.
+Higher means less safe.
 
 ---
 
@@ -207,37 +212,36 @@ V_safety_actsvd.npy         (rank, hidden)
 V_utility_actsvd.npy        (rank, hidden)
 eval_prompts.json           held-out AdvBench prompts
 meta.json                   extraction config
-sensitivity_acts/           per-layer activations cache (auto-generated on first sweep,
-                            git-ignored because the files exceed GitHub's 100 MB limit;
-                            run_sensitivity.py rebuilds them automatically)
+sensitivity_acts/           per-layer activations cache. Auto-generated
+                            on first sweep. Git-ignored because the
+                            files exceed GitHub's 100 MB limit. The
+                            script rebuilds them automatically.
 ```
 
 ---
 
 ## Relationship to HW3
 
-The original HW3 deliverables — `eda.py`, `ablation_experiment.py`,
+The original HW3 deliverables live in `hw3/` and are kept unchanged
+for reference. They include `eda.py`, `ablation_experiment.py`,
 `exploratory_analysis.py`, `r_s_unit.npy`, `ablation_results.json`,
-`asr_examples.json`, and the three `eda_*.png` plots — live in `hw3/`
-unchanged. The HW5 pipeline supersedes them but the legacy scripts
-still run end-to-end against `cache/gemma2-2b-it/r_safety_dom.npy`
-(equivalent to `r_s_unit.npy`).
+`asr_examples.json`, and the three `eda_*.png` plots. The HW5 pipeline
+in `src/` and `scripts/` is the current code.
 
 ---
 
 ## Known caveats
 
-* **Refusal detection is substring-based**, so it over-counts politely-
-  worded compliance ("I cannot help… [proceeds to help]"). LLM-as-judge
-  scoring would tighten this.
-* **ActSVD rank** defaults to 4; the rank sweep is what justifies that
-  choice — see `sensitivity_rank_sweep.json`.
-* **Llama layer choice** was determined empirically via an 11-layer
-  sensitivity sweep. The EDA's divergence-score recommendation
-  (layer 32) does not correspond to a hookable transformer block and
-  did not produce a working ablation when tested at layer 31. The
-  empirical best layer (16) still produces only a weak ablation effect,
-  which we report as a negative finding.
-* **Same RNG seed per cell** in `run_2x2_matrix.py` ensures every cell
-  hits the same utility-benchmark indices, so deltas across cells are
-  not dominated by sampling noise.
+* **Refusal detection is substring-based.** It can over-count politely-
+  worded compliance (e.g. "I cannot help… [proceeds to help]"). An
+  LLM-as-judge evaluator would tighten this.
+* **ActSVD rank defaults to 4.** The rank sweep in
+  `sensitivity_rank_sweep.json` justifies that choice.
+* **Llama layer choice was empirical.** The EDA's divergence-score
+  recommendation (layer 32) is not a hookable transformer block. We
+  swept 11 layers and picked layer 16 as the best available. The
+  effect at layer 16 is still weak, and we report this as a negative
+  finding in the analysis.
+* **Same RNG seed per cell.** `run_2x2_matrix.py` resets the seed
+  before each cell so all cells use the same utility-benchmark
+  indices. Deltas across cells are not caused by sampling noise.
