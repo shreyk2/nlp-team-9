@@ -1,0 +1,52 @@
+[
+  {
+    "rank": 1,
+    "layer": 25,
+    "asr": 0.86,
+    "boolq": 0.83,
+    "hellaswag": 0.52,
+    "arc_challenge": 0.52,
+    "truthfulqa_mc1": 0.38,
+    "avg_utility": 0.6233333333333334
+  },
+  {
+    "rank": 2,
+    "layer": 25,
+    "asr": 0.92,
+    "boolq": 0.83,
+    "hellaswag": 0.52,
+    "arc_challenge": 0.52,
+    "truthfulqa_mc1": 0.38,
+    "avg_utility": 0.6233333333333334
+  },
+  {
+    "rank": 4,
+    "layer": 25,
+    "asr": 0.93,
+    "boolq": 0.82,
+    "hellaswag": 0.55,
+    "arc_challenge": 0.54,
+    "truthfulqa_mc1": 0.37,
+    "avg_utility": 0.6366666666666667
+  },
+  {
+    "rank": 8,
+    "layer": 25,
+    "asr": 0.97,
+    "boolq": 0.75,
+    "hellaswag": 0.5,
+    "arc_challenge": 0.49,
+    "truthfulqa_mc1": 0.33,
+    "avg_utility": 0.58
+  },
+  {
+    "rank": 16,
+    "layer": 25,
+    "asr": 0.96,
+    "boolq": 0.63,
+    "hellaswag": 0.53,
+    "arc_challenge": 0.49,
+    "truthfulqa_mc1": 0.29,
+    "avg_utility": 0.55
+  }
+]

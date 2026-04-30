@@ -1,0 +1,11 @@
+[
+  {
+    "layer": 25,
+    "asr": 0.84,
+    "boolq": 0.83,
+    "hellaswag": 0.52,
+    "arc_challenge": 0.52,
+    "truthfulqa_mc1": 0.38,
+    "avg_utility": 0.6233333333333334
+  }
+]

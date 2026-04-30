@@ -1,5 +1,11 @@
 .venv
 .env
 venv
-__pycache__*
-nlp_team_9.egg-info
+venv_a40
+__pycache__/
+*.egg-info/
+.DS_Store
+
+cache/*/sensitivity_acts/
+
+docs/

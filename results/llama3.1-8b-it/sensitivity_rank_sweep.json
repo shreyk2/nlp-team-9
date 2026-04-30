@@ -1,0 +1,12 @@
+[
+  {
+    "rank": 4,
+    "layer": 22,
+    "asr": 0.05,
+    "boolq": 0.84,
+    "hellaswag": 0.61,
+    "arc_challenge": 0.6,
+    "truthfulqa_mc1": 0.35,
+    "avg_utility": 0.6833333333333332
+  }
+]
