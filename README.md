@@ -36,13 +36,6 @@ Models studied: **Gemma-2-2B-IT** and **Llama-3.1-8B-Instruct**.
 │   ├── asr_examples.json
 │   ├── eda_*.png
 │   └── r_s_unit.npy
-├── docs/                        instructions, proposals, slides
-│   ├── hw5.txt
-│   ├── ProjectProposal.pdf
-│   ├── Group 9 Proposal.pdf
-│   ├── Team-9.pptx
-│   ├── Team-9.txt
-│   └── Deep Learning HW 3 Idea 6*.pdf
 ├── results/<tag>/               EDA plots, JSONs, matrix plot
 ├── cache/<tag>/                 extracted directions + cached activations
 ├── run_all.sh                   end-to-end reproduction
