@@ -250,7 +250,7 @@ in `src/` and `scripts/` is the current code.
   recommendation (hidden_states index 32) sits past the last hookable
   transformer block (Llama-3.1-8B has 32 blocks indexed 0-31). We
   tried L=31 (the nearest valid block) and it produced no measurable
-  effect; we then swept 11 layers and picked L=16 as the best
+  effect; we then swept 10 layers and picked L=16 as the best
   available. Even L=16 produces only a weak ablation effect, which we
   report as a negative finding in the analysis.
 * **Same RNG seed per cell.** `run_2x2_matrix.py` resets the seed
