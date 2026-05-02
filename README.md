@@ -201,6 +201,15 @@ matrix_results.json             full 2x2 cross-intervention numbers
 matrix_plot.png                 grouped bar chart of the matrix
 sensitivity_layer_sweep.json    ASR + utility per extraction layer
 sensitivity_rank_sweep.json     ASR + utility per ActSVD rank
+
+# Llama tag also has:
+matrix_results_layer31.json     2x2 matrix at the layer the EDA divergence
+                                score recommended (hidden_states index 32,
+                                whose nearest hookable transformer block is
+                                L=31). Kept as evidence that the EDA
+                                recommendation does not produce a working
+                                ablation, supporting the negative finding
+                                reported in the analysis.
 ```
 
 `cache/<tag>/` contains:
@@ -238,10 +247,12 @@ in `src/` and `scripts/` is the current code.
 * **ActSVD rank defaults to 4.** The rank sweep in
   `sensitivity_rank_sweep.json` justifies that choice.
 * **Llama layer choice was empirical.** The EDA's divergence-score
-  recommendation (layer 32) is not a hookable transformer block. We
-  swept 11 layers and picked layer 16 as the best available. The
-  effect at layer 16 is still weak, and we report this as a negative
-  finding in the analysis.
+  recommendation (hidden_states index 32) sits past the last hookable
+  transformer block (Llama-3.1-8B has 32 blocks indexed 0-31). We
+  tried L=31 (the nearest valid block) and it produced no measurable
+  effect; we then swept 11 layers and picked L=16 as the best
+  available. Even L=16 produces only a weak ablation effect, which we
+  report as a negative finding in the analysis.
 * **Same RNG seed per cell.** `run_2x2_matrix.py` resets the seed
   before each cell so all cells use the same utility-benchmark
   indices. Deltas across cells are not caused by sampling noise.
