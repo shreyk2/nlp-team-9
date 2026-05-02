@@ -1,0 +1,25 @@
+{
+  "tag": "llama3.1-8b-it",
+  "safety_subspace_shape": [
+    4,
+    4096
+  ],
+  "utility_subspace_shape": [
+    4,
+    4096
+  ],
+  "actsvd_subspace_similarity_phi": 0.07351428270339966,
+  "actsvd_cos_principal_angles": [
+    0.48436856269836426,
+    0.18548384308815002,
+    0.15334860980510712,
+    0.03904075548052788
+  ],
+  "actsvd_principal_angles_degrees": [
+    61.02888488769531,
+    79.3106460571289,
+    81.17896270751953,
+    87.76255798339844
+  ],
+  "dom_cosine_safety_utility": -0.12220554053783417
+}

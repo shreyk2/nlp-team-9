@@ -30,3 +30,18 @@ def project_out_subspace(activations, subspace_basis):
     coefficients = activations @ subspace_basis.T
     projection_vectors = coefficients @ subspace_basis
     return activations - projection_vectors
+
+
+def principal_angles_between_subspaces(first_basis, second_basis):
+    overlap_matrix = first_basis @ second_basis.T
+    singular_values = np.linalg.svd(overlap_matrix, compute_uv=False)
+    clipped_singular_values = np.clip(singular_values, -1.0, 1.0)
+    angles_in_radians = np.arccos(clipped_singular_values)
+    angles_in_degrees = np.degrees(angles_in_radians)
+    mean_squared_cosine = float(np.mean(clipped_singular_values ** 2))
+    return {
+        "cos_principal_angles": clipped_singular_values.tolist(),
+        "principal_angles_radians": angles_in_radians.tolist(),
+        "principal_angles_degrees": angles_in_degrees.tolist(),
+        "subspace_similarity_phi": mean_squared_cosine,
+    }

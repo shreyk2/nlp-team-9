@@ -1,0 +1,25 @@
+{
+  "tag": "gemma2-2b-it",
+  "safety_subspace_shape": [
+    4,
+    2304
+  ],
+  "utility_subspace_shape": [
+    4,
+    2304
+  ],
+  "actsvd_subspace_similarity_phi": 0.06527315080165863,
+  "actsvd_cos_principal_angles": [
+    0.4705025255680084,
+    0.16192269325256348,
+    0.11618991941213608,
+    0.0009644708479754627
+  ],
+  "actsvd_principal_angles_degrees": [
+    61.93307876586914,
+    80.68148040771484,
+    83.32772827148438,
+    89.94473266601562
+  ],
+  "dom_cosine_safety_utility": -0.06141100078821182
+}

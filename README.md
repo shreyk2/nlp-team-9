@@ -29,7 +29,8 @@ Models tested: **Gemma-2-2B-IT** and **Llama-3.1-8B-Instruct**.
 │   ├── extract_directions.py    extract DoM + ActSVD, save to cache/
 │   ├── run_2x2_matrix.py        cross-intervention experiment
 │   ├── run_sensitivity.py       layer + ActSVD-rank sweep
-│   └── plot_matrix.py           grouped bar chart
+│   ├── plot_matrix.py           grouped bar chart
+│   └── compute_subspace_angles.py  φ(U_s, U_u) + principal angles
 ├── hw3/                         HW3 deliverables (preserved as submitted)
 ├── results/<tag>/               EDA plots, JSONs, matrix plot
 ├── cache/<tag>/                 extracted directions
@@ -201,6 +202,9 @@ matrix_results.json             full 2x2 cross-intervention numbers
 matrix_plot.png                 grouped bar chart of the matrix
 sensitivity_layer_sweep.json    ASR + utility per extraction layer
 sensitivity_rank_sweep.json     ASR + utility per ActSVD rank
+subspace_angles.json            ActSVD subspace similarity φ(U_s, U_u)
+                                and principal angles between safety
+                                and utility subspaces
 
 # Llama tag also has:
 matrix_results_layer31.json     2x2 matrix at the layer the EDA divergence
