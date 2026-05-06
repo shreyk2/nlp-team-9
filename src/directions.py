@@ -32,6 +32,19 @@ def project_out_subspace(activations, subspace_basis):
     return activations - projection_vectors
 
 
+def random_unit_direction(dimensionality, seed=0):
+    rng = np.random.RandomState(seed)
+    raw_vector = rng.normal(size=dimensionality).astype(np.float32)
+    return raw_vector / (np.linalg.norm(raw_vector) + 1e-8)
+
+
+def random_orthonormal_subspace(rank, dimensionality, seed=0):
+    rng = np.random.RandomState(seed)
+    raw_matrix = rng.normal(size=(dimensionality, rank)).astype(np.float32)
+    orthonormal_columns, _ = np.linalg.qr(raw_matrix)
+    return orthonormal_columns.T
+
+
 def principal_angles_between_subspaces(first_basis, second_basis):
     overlap_matrix = first_basis @ second_basis.T
     singular_values = np.linalg.svd(overlap_matrix, compute_uv=False)

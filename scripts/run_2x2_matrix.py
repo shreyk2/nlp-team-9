@@ -9,10 +9,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.ablation import DirectionalAblationHook, NoOpHook, SubspaceAblationHook
 from src.common import load_model, set_seed
+from src.directions import random_orthonormal_subspace, random_unit_direction
 from src.evaluation import evaluate_all_utility_benchmarks, evaluate_attack_success_rate
 
 
-def build_hook_for_cell(extraction_method, ablation_target, cache_directory, layer):
+def build_hook_for_cell(extraction_method, ablation_target, cache_directory, layer, hidden_size=None, random_seed=0, random_rank=4):
     if extraction_method == "dom":
         path = os.path.join(cache_directory, f"r_{ablation_target}_dom.npy")
         direction = np.load(path)
@@ -21,6 +22,16 @@ def build_hook_for_cell(extraction_method, ablation_target, cache_directory, lay
         path = os.path.join(cache_directory, f"V_{ablation_target}_actsvd.npy")
         subspace = np.load(path)
         return SubspaceAblationHook(subspace, layer)
+    if extraction_method == "random_direction":
+        if hidden_size is None:
+            raise ValueError("hidden_size required for random_direction")
+        random_vec = random_unit_direction(hidden_size, seed=random_seed)
+        return DirectionalAblationHook(random_vec, layer)
+    if extraction_method == "random_subspace":
+        if hidden_size is None:
+            raise ValueError("hidden_size required for random_subspace")
+        random_basis = random_orthonormal_subspace(random_rank, hidden_size, seed=random_seed)
+        return SubspaceAblationHook(random_basis, layer)
     raise ValueError(extraction_method)
 
 
@@ -52,6 +63,8 @@ def parse_command_line_arguments():
     parser.add_argument("--cache_root", default="cache")
     parser.add_argument("--results_root", default="results")
     parser.add_argument("--cells", default="all")
+    parser.add_argument("--random_seed", type=int, default=0)
+    parser.add_argument("--random_rank", type=int, default=4)
     return parser.parse_args()
 
 
@@ -68,6 +81,7 @@ def main():
     print(f"loaded {len(harmful_evaluation_prompts)} held-out AdvBench eval prompts")
 
     model, tokenizer, device = load_model(args.model)
+    hidden_size = model.config.hidden_size
 
     full_cell_specifications = [
         ("baseline", None, None),
@@ -75,6 +89,8 @@ def main():
         ("dom_utility", "dom", "utility"),
         ("actsvd_safety", "actsvd", "safety"),
         ("actsvd_utility", "actsvd", "utility"),
+        ("random_direction", "random_direction", None),
+        ("random_subspace", "random_subspace", None),
     ]
 
     if args.cells == "all":
@@ -86,7 +102,17 @@ def main():
             if specification[0] in wanted_cell_names:
                 selected_cell_specifications.append(specification)
 
+    matrix_results_path = os.path.join(output_directory, "matrix_results.json")
     results_by_cell = {}
+    if os.path.exists(matrix_results_path):
+        try:
+            with open(matrix_results_path) as f:
+                results_by_cell = json.load(f).get("results", {})
+            print(f"loaded {len(results_by_cell)} existing cell(s) from {matrix_results_path}")
+        except Exception as exc:
+            print(f"could not load existing matrix_results.json ({exc}); starting fresh")
+            results_by_cell = {}
+
     for cell_name, extraction_method, ablation_target in selected_cell_specifications:
         print("\n" + "=" * 70)
         print(f"CELL: {cell_name}")
@@ -96,13 +122,16 @@ def main():
             hook = NoOpHook()
         else:
             hook = build_hook_for_cell(
-                extraction_method, ablation_target, cache_directory, args.layer
+                extraction_method, ablation_target, cache_directory, args.layer,
+                hidden_size=hidden_size,
+                random_seed=args.random_seed,
+                random_rank=args.random_rank,
             )
         cell_results = run_single_cell(
             model, tokenizer, device, hook, harmful_evaluation_prompts, args.n_utility
         )
         results_by_cell[cell_name] = cell_results
-        with open(os.path.join(output_directory, "matrix_results.json"), "w") as f:
+        with open(matrix_results_path, "w") as f:
             json.dump({"meta": vars(args), "results": results_by_cell}, f, indent=2)
         print(
             f"  ASR={cell_results['asr']:.1%} | "
@@ -119,7 +148,13 @@ def main():
     )
     print(header_line)
     print("-" * len(header_line))
-    for cell_name, _, _ in selected_cell_specifications:
+    canonical_order = [
+        "baseline",
+        "dom_safety", "dom_utility",
+        "actsvd_safety", "actsvd_utility",
+        "random_direction", "random_subspace",
+    ]
+    for cell_name in canonical_order:
         if cell_name not in results_by_cell:
             continue
         row = results_by_cell[cell_name]

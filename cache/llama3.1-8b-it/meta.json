@@ -1,11 +1,11 @@
 {
   "model": "meta-llama/Llama-3.1-8B-Instruct",
   "tag": "llama3.1-8b-it",
-  "layer": 16,
+  "layer": 11,
   "n_extract": 256,
   "n_eval": 100,
   "rank": 4,
   "min_delta": 3,
   "seed": 42,
-  "cos_dom_at_layer": -0.12220554053783417
+  "cos_dom_at_layer": 0.022677555680274963
 }
