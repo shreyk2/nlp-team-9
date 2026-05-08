@@ -7,14 +7,26 @@ def compute_dom_direction(positive_activations, negative_activations):
     return mean_difference / direction_norm
 
 
-def compute_actsvd_subspace(positive_activations, negative_activations, rank=4):
+def compute_actsvd_subspace(
+    positive_activations,
+    negative_activations,
+    rank=4,
+    rank_position="top",
+):
+    if rank < 1:
+        raise ValueError("ActSVD rank must be at least 1")
     sample_count = min(len(positive_activations), len(negative_activations))
     rng = np.random.RandomState(0)
     positive_indices = rng.choice(len(positive_activations), sample_count, replace=False)
     negative_indices = rng.choice(len(negative_activations), sample_count, replace=False)
     difference_matrix = positive_activations[positive_indices] - negative_activations[negative_indices]
     _, _, right_singular_vectors = np.linalg.svd(difference_matrix, full_matrices=False)
-    subspace_basis = right_singular_vectors[:rank]
+    if rank_position == "top":
+        subspace_basis = right_singular_vectors[:rank]
+    elif rank_position == "bottom":
+        subspace_basis = right_singular_vectors[-rank:]
+    else:
+        raise ValueError(f"unknown ActSVD rank_position: {rank_position}")
     row_norms = np.linalg.norm(subspace_basis, axis=1, keepdims=True) + 1e-8
     subspace_basis = subspace_basis / row_norms
     return subspace_basis

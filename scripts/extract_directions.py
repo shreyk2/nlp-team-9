@@ -88,10 +88,18 @@ def main():
         high_helpfulness_activations, low_helpfulness_activations
     )
     safety_subspace_actsvd = compute_actsvd_subspace(
-        harmful_activations, harmless_activations, rank=args.rank
+        harmful_activations,
+        harmless_activations,
+        rank=args.rank,
+        rank_position="top",
     )
+    # Pivot: keep the actsvd_utility cell name, but source it from the
+    # least safety-relevant safety ranks instead of raw HelpSteer utility ranks.
     utility_subspace_actsvd = compute_actsvd_subspace(
-        high_helpfulness_activations, low_helpfulness_activations, rank=args.rank
+        harmful_activations,
+        harmless_activations,
+        rank=args.rank,
+        rank_position="bottom",
     )
 
     cosine_dom = float(np.dot(safety_direction_dom, utility_direction_dom))
@@ -115,6 +123,10 @@ def main():
         "min_delta": args.min_delta,
         "seed": args.seed,
         "cos_dom_at_layer": cosine_dom,
+        "actsvd_safety_source": "top_safety_ranks",
+        "actsvd_safety_rank_position": "top",
+        "actsvd_utility_source": "bottom_safety_ranks",
+        "actsvd_utility_rank_position": "bottom",
     }
     with open(os.path.join(cache_directory, "meta.json"), "w") as f:
         json.dump(metadata, f, indent=2)

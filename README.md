@@ -94,11 +94,8 @@ ablation lifting ASR from 6% to 55%. We treat the EDA layer-selection
 mismatch on larger models as itself a finding (see Section 5 of the
 report).
 
-`run_all.sh` defaults to `LLAMA_LAYER=16`. To reproduce the canonical
-Llama matrix you must pass `--layer 11` to `extract_directions.py` and
-`run_2x2_matrix.py` directly, or edit `run_all.sh` to set
-`LLAMA_LAYER=11`. The sweep range in `run_all.sh` is auto-clipped so
-it never exceeds the model's last block.
+`run_all.sh` defaults to `LLAMA_LAYER=11` for Llama. The sweep range in
+`run_all.sh` is auto-clipped so it never exceeds the model's last block.
 
 ### Step-by-step
 
@@ -157,8 +154,13 @@ normalize.
 ### ActSVD
 
 Build the per-example difference matrix `D = H_pos - H_neg`. Take its
-SVD. Keep the top-k right singular vectors as an orthonormal basis
+SVD. For safety ablation, keep the top-k right singular vectors as an
+orthonormal basis
 V (k × d).
+
+For the current Llama utility pivot, `actsvd_utility` keeps the
+bottom-k right singular vectors from the safety difference matrix
+instead of extracting raw HelpSteer utility ActSVD ranks.
 
 ### Ablation
 
@@ -177,6 +179,11 @@ For each cell, ablate the named direction. Then evaluate both ASR
 |--------------|-------------------|--------------------|
 | **DoM**      | dom_safety        | dom_utility        |
 | **ActSVD**   | actsvd_safety     | actsvd_utility     |
+
+In the current pivot, `actsvd_utility` is intentionally implemented as
+bottom safety-rank ablation: it loads `V_utility_actsvd.npy`, but that
+file is generated from the least safety-relevant AdvBench-vs-Alpaca
+ActSVD ranks.
 
 Plus a `baseline` row (no ablation) and two random-direction control
 rows. `random_direction` ablates a random unit vector at the same
@@ -280,7 +287,8 @@ actsvd_utility, random_direction, random_subspace).
 r_safety_dom.npy            (hidden,)
 r_utility_dom.npy           (hidden,)
 V_safety_actsvd.npy         (rank, hidden)
-V_utility_actsvd.npy        (rank, hidden)
+V_utility_actsvd.npy        (rank, hidden), bottom safety ranks for
+                            the current actsvd_utility pivot
 eval_prompts.json           held-out AdvBench prompts
 meta.json                   extraction config
 sensitivity_acts/           per-layer activations cache. Auto-generated
