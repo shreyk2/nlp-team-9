@@ -9,7 +9,7 @@ GEMMA_LAYER=25
 
 LLAMA_MODEL="meta-llama/Llama-3.1-8B-Instruct"
 LLAMA_TAG="llama3.1-8b-it"
-LLAMA_LAYER=16
+LLAMA_LAYER=11
 
 run_pipeline () {
   local model_id="$1"
