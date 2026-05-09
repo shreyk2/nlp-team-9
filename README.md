@@ -1,5 +1,7 @@
 # Disentangling Safety and Utility in LLM Activation Spaces
 
+GitHub repository: https://github.com/shreyk2/nlp-team-9
+
 We studied whether instruction-following LLMs represent safety/refusal behavior and utility/helpfulness behavior in separable activation-space directions.
 
 We compare two direction-extraction methods, DoM and ActSVD, then ablate those directions at a chosen transformer layer using forward hooks. The main question is simple: if we remove a safety direction, does harmful behavior increase without materially hurting utility, and vice versa?
