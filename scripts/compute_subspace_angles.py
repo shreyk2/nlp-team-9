@@ -1,3 +1,4 @@
+# compute principal angles between safety and utility subspaces
 import argparse
 import json
 import os

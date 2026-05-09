@@ -1,3 +1,4 @@
+# exploratory analysis: layer selection, delta thresholds, direction stability
 import argparse
 import json
 import os
@@ -33,6 +34,7 @@ def parse_command_line_arguments():
     return parser.parse_args()
 
 
+# get high/low response activations grouped by helpfulness delta
 def collect_activations_per_delta(pairs_by_delta, model, tokenizer, device, max_count_per_delta):
     high_activations_by_delta = {}
     low_activations_by_delta = {}
@@ -49,6 +51,7 @@ def collect_activations_per_delta(pairs_by_delta, model, tokenizer, device, max_
     return high_activations_by_delta, low_activations_by_delta
 
 
+# compute per-layer norms, cosines, and divergence score for layer picking
 def compute_layer_selection_metrics(
     harmful_sample, harmless_sample, high_sample, low_sample, layer_count
 ):
@@ -75,6 +78,7 @@ def compute_layer_selection_metrics(
     return safety_norms, utility_norms, cosines, divergence_scores
 
 
+# 3-panel plot: direction norms, cosine curve, divergence with recommendation
 def plot_layer_selection_panels(
     layer_indices,
     safety_norms,
@@ -134,6 +138,7 @@ def plot_layer_selection_panels(
     plt.close()
 
 
+# 3-panel plot: cosine vs delta, norm vs delta, PCA scatter for delta=4
 def plot_helpsteer_delta_panels(
     high_activations_by_delta,
     low_activations_by_delta,
@@ -207,6 +212,7 @@ def plot_helpsteer_delta_panels(
     return deltas_present, mean_cosines, direction_norms
 
 
+# bootstrap resampled directions to test stability at a given sample size
 def bootstrap_direction_samples(
     positive_activations, negative_activations, sample_size, layer_index, trial_count=10
 ):
@@ -223,6 +229,7 @@ def bootstrap_direction_samples(
     return sampled_directions
 
 
+# mean and std of all pairwise cosines between bootstrap samples
 def compute_pairwise_cosine_statistics(directions):
     pairwise_cosines = []
     for first_index in range(len(directions)):
@@ -233,6 +240,7 @@ def compute_pairwise_cosine_statistics(directions):
     return float(np.mean(pairwise_cosines)), float(np.std(pairwise_cosines))
 
 
+# plot direction stability vs sample size N
 def plot_stability_curve(
     sample_sizes,
     safety_stability,

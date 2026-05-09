@@ -1,6 +1,8 @@
+# forward hooks that project out directions/subspaces at a given layer
 import torch
 
 
+# hook that subtracts the DoM direction component from hidden states
 class DirectionalAblationHook:
 
     def __init__(self, direction, layer_index):
@@ -8,6 +10,7 @@ class DirectionalAblationHook:
         self.layer_index = layer_index
         self.handle = None
 
+    # subtract projection onto the direction: h' = h - (h . r_hat) * r_hat
     def hook_function(self, _module, _inputs, output):
         if isinstance(output, tuple):
             hidden_states = output[0]
@@ -37,6 +40,7 @@ class DirectionalAblationHook:
             self.handle = None
 
 
+# hook that subtracts the ActSVD subspace component from hidden states
 class SubspaceAblationHook:
 
     def __init__(self, subspace_basis, layer_index):

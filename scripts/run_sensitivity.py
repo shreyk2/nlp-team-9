@@ -1,3 +1,4 @@
+# layer sweep and ActSVD rank sweep for sensitivity analysis
 import argparse
 import json
 import os
@@ -19,6 +20,7 @@ from src.directions import compute_actsvd_subspace, compute_dom_direction
 from src.evaluation import evaluate_all_utility_benchmarks, evaluate_attack_success_rate
 
 
+# load or compute all-layer activations for the safety pool
 def get_or_cache_safety_pool_activations(cache_directory, model, tokenizer, device, n_extract, n_eval):
     sensitivity_directory = os.path.join(cache_directory, "sensitivity_acts")
     os.makedirs(sensitivity_directory, exist_ok=True)
@@ -77,6 +79,7 @@ def parse_command_line_arguments():
     return parser.parse_args()
 
 
+# parse comma-separated layer list or default to all layers
 def parse_layer_list(layers_argument, total_layer_count):
     if not layers_argument:
         return list(range(total_layer_count))
@@ -86,6 +89,7 @@ def parse_layer_list(layers_argument, total_layer_count):
     return parsed_layers
 
 
+# parse comma-separated rank list
 def parse_rank_list(ranks_argument):
     parsed_ranks = []
     for rank_string in ranks_argument.split(","):
@@ -93,6 +97,7 @@ def parse_rank_list(ranks_argument):
     return parsed_ranks
 
 
+# DoM safety ablation at each layer, record ASR + utility
 def run_layer_sweep(
     model,
     tokenizer,
@@ -134,6 +139,7 @@ def run_layer_sweep(
     return layer_results
 
 
+# ActSVD ablation at varying ranks, record ASR + utility
 def run_rank_sweep(
     model,
     tokenizer,

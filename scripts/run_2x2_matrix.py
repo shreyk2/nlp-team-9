@@ -1,3 +1,4 @@
+# run the 2x2 cross-intervention matrix (safety x utility, DoM x ActSVD + random controls)
 import argparse
 import json
 import os
@@ -13,6 +14,7 @@ from src.directions import random_orthonormal_subspace, random_unit_direction
 from src.evaluation import evaluate_all_utility_benchmarks, evaluate_attack_success_rate
 
 
+# create the right hook type for a given matrix cell (dom, actsvd, or random)
 def build_hook_for_cell(extraction_method, ablation_target, cache_directory, layer, hidden_size=None, random_seed=0, random_rank=4):
     if extraction_method == "dom":
         path = os.path.join(cache_directory, f"r_{ablation_target}_dom.npy")
@@ -35,6 +37,7 @@ def build_hook_for_cell(extraction_method, ablation_target, cache_directory, lay
     raise ValueError(extraction_method)
 
 
+# attach hook, evaluate ASR + utility, then detach
 def run_single_cell(model, tokenizer, device, hook, harmful_evaluation_prompts, utility_sample_count):
     hook.attach(model)
     try:

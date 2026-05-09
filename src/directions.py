@@ -1,12 +1,15 @@
+# direction and subspace construction for ablation experiments
 import numpy as np
 
 
+# difference-of-means: normalized direction separating two activation sets
 def compute_dom_direction(positive_activations, negative_activations):
     mean_difference = positive_activations.mean(axis=0) - negative_activations.mean(axis=0)
     direction_norm = np.linalg.norm(mean_difference) + 1e-8
     return mean_difference / direction_norm
 
 
+# ActSVD: top-k right singular vectors of paired activation differences
 def compute_actsvd_subspace(
     positive_activations,
     negative_activations,
@@ -32,24 +35,28 @@ def compute_actsvd_subspace(
     return subspace_basis
 
 
+# remove the component along a single direction from activations
 def project_out_direction(activations, unit_direction):
     projection_magnitudes = activations @ unit_direction
     projection_vectors = projection_magnitudes[..., None] * unit_direction[None, ...]
     return activations - projection_vectors
 
 
+# remove the component along a multi-dimensional subspace
 def project_out_subspace(activations, subspace_basis):
     coefficients = activations @ subspace_basis.T
     projection_vectors = coefficients @ subspace_basis
     return activations - projection_vectors
 
 
+# random baseline direction for control experiments
 def random_unit_direction(dimensionality, seed=0):
     rng = np.random.RandomState(seed)
     raw_vector = rng.normal(size=dimensionality).astype(np.float32)
     return raw_vector / (np.linalg.norm(raw_vector) + 1e-8)
 
 
+# random orthonormal basis for subspace control experiments
 def random_orthonormal_subspace(rank, dimensionality, seed=0):
     rng = np.random.RandomState(seed)
     raw_matrix = rng.normal(size=(dimensionality, rank)).astype(np.float32)
@@ -57,6 +64,7 @@ def random_orthonormal_subspace(rank, dimensionality, seed=0):
     return orthonormal_columns.T
 
 
+# compute principal angles between two subspaces via SVD of overlap matrix
 def principal_angles_between_subspaces(first_basis, second_basis):
     overlap_matrix = first_basis @ second_basis.T
     singular_values = np.linalg.svd(overlap_matrix, compute_uv=False)

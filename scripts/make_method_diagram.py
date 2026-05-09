@@ -1,9 +1,11 @@
+# generate the method overview figure (hook diagram + expected 2x2 pattern)
 import os
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
 
+# draw the two-panel method diagram and save as PNG
 def main():
     output_path = os.path.join(
         os.path.dirname(__file__), "..", "docs", "method_diagram.png"

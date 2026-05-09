@@ -1,3 +1,4 @@
+# extract and cache DoM + ActSVD directions at a chosen layer
 import argparse
 import json
 import os

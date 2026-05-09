@@ -1,3 +1,4 @@
+# bar chart of the 2x2 matrix results (ASR + utility benchmarks)
 import argparse
 import json
 import os
