@@ -1,48 +1,115 @@
-# Disentangling Safety and Utility in LLM Activation Spaces — Team 9 (CS639)
+# Disentangling Safety and Utility in LLM Activation Spaces
 
-Instruction-tuned LLMs encode refusal (safety) and helpfulness (utility)
-as directions in their activation space. We test whether these
-directions live in separable subspaces or share structure.
+We studied whether instruction-following LLMs represent safety/refusal behavior and utility/helpfulness behavior in separable activation-space directions.
 
-We extract each direction with two methods: Difference-of-Means (DoM)
-and ActSVD. We then ablate the direction at a single transformer layer
-using a forward hook. To check independence, we run a 2×2
-cross-intervention matrix. The idea is simple: ablating one direction
-should break only its own behavior.
+We compare two direction-extraction methods, DoM and ActSVD, then ablate those directions at a chosen transformer layer using forward hooks. The main question is simple: if we remove a safety direction, does harmful behavior increase without materially hurting utility, and vice versa?
 
-Models tested: **Gemma-2-2B-IT** and **Llama-3.1-8B-Instruct**.
+Models used in the current experiments:
 
----
+- Gemma-2-2B-IT
+- Llama-3.1-8B-Instruct
 
-## Repo layout
+## What This Repo Does
+
+The pipeline has four stages:
+
+1. Explore layer-wise activation geometry to choose a candidate extraction layer.
+2. Extract safety and utility directions at that layer.
+3. Ablate the extracted directions and evaluate both safety and utility benchmarks.
+4. Sweep layers, ranks, and subspace overlap to test how robust the result is.
+
+The code is organized so the reusable logic lives in [src/](src/), while the experiment entry points live in [scripts/](scripts/).
+
+## Repository Layout
 
 ```
 .
-├── src/                         shared library
-│   ├── __init__.py
-│   ├── common.py                model + activation + dataset loaders
-│   ├── directions.py            DoM and ActSVD extraction
-│   ├── ablation.py              forward-hook ablation
-│   └── evaluation.py            ASR + utility benchmarks
+├── src/
+│   ├── common.py              model loading, activations, dataset helpers
+│   ├── directions.py          DoM, ActSVD, projection utilities
+│   ├── ablation.py            forward-hook ablation classes
+│   └── evaluation.py          ASR and utility benchmark evaluation
 ├── scripts/
-│   ├── run_eda.py               layer selection, δ comparison, stability
-│   ├── extract_directions.py    extract DoM + ActSVD, save to cache/
-│   ├── run_2x2_matrix.py        cross-intervention experiment
-│   ├── run_sensitivity.py       layer + ActSVD-rank sweep
-│   ├── plot_matrix.py           grouped bar chart
-│   └── compute_subspace_angles.py  φ(U_s, U_u) + principal angles
-├── hw3/                         HW3 deliverables (preserved as submitted)
-├── results/<tag>/               EDA plots, JSONs, matrix plot
-├── cache/<tag>/                 extracted directions
-├── run_all.sh                   end-to-end driver
+│   ├── run_eda.py             layer selection and stability analysis
+│   ├── extract_directions.py  save DoM and ActSVD directions to cache/
+│   ├── run_2x2_matrix.py      cross-intervention matrix experiment
+│   ├── plot_matrix.py         bar chart for matrix results
+│   ├── run_sensitivity.py     layer and rank sweeps
+│   └── compute_subspace_angles.py  principal-angle analysis
+├── cache/                     extracted directions and prompt splits
+├── results/                   plots and JSON summaries
+├── run_all.sh                 end-to-end driver for both models
 ├── requirements.txt
 ├── pyproject.toml
 └── README.md
 ```
 
-`tag` is `gemma2-2b-it` or `llama3.1-8b-it`.
+## Main Idea
 
----
+At a chosen layer $L$, the repo builds two kinds of vectors or subspaces:
+
+- a safety direction, from harmful prompts vs harmless prompts
+- a utility direction, from high-helpfulness vs low-helpfulness responses
+
+It then measures what happens when those directions are removed from the hidden states of the model.
+
+If the directions are meaningfully disentangled, then ablation should mostly affect the behavior associated with the ablated direction.
+
+## Methods
+
+### Difference of Means (DoM)
+
+For a positive set and a negative set, DoM computes:
+
+$$
+r = \frac{1}{|P|} \sum_{x \in P} h(x) - \frac{1}{|N|} \sum_{x \in N} h(x)
+$$
+
+The resulting vector is normalized and used as a one-dimensional direction.
+
+In this project:
+
+- safety DoM: AdvBench prompts vs Alpaca prompts
+- utility DoM: high-helpfulness HelpSteer responses vs low-helpfulness HelpSteer responses
+
+For prompt activations, the code uses the last prompt token. For response activations, it averages hidden states over the response tokens only.
+
+### ActSVD
+
+ActSVD builds a matrix of paired activation differences and takes its SVD. The top-$k$ right singular vectors form an orthonormal basis for a subspace.
+
+For ablation, the hidden state is projected onto that basis and the projection is removed:
+
+$$
+h' = h - (hV^T)V
+$$
+
+where $V$ is the basis matrix.
+
+### Ablation Hooks
+
+The actual intervention happens in [src/ablation.py](src/ablation.py) using a forward hook on a transformer block. That keeps the rest of the model unchanged while zeroing out the chosen direction or subspace.
+
+## Evaluation
+
+The repo evaluates two broad outcomes:
+
+- Safety: Attack Success Rate, measured on held-out AdvBench prompts
+- Utility: BoolQ, HellaSwag, ARC-Challenge, and TruthfulQA MC1
+
+ASR is computed with substring-based refusal detection in [src/evaluation.py](src/evaluation.py). Lower ASR means the model is refusing more often and is therefore safer by this metric.
+
+## Datasets
+
+The current pipeline uses these datasets:
+
+- `walledai/AdvBench` for harmful prompts and held-out ASR evaluation
+- `tatsu-lab/alpaca` for harmless prompts
+- `nvidia/HelpSteer` for utility pairs
+- `google/boolq` for yes/no reading comprehension
+- `Rowan/hellaswag` for commonsense completion
+- `allenai/ai2_arc` for science questions
+- `truthfulqa/truthful_qa` for control evaluation
 
 ## Setup
 
@@ -53,284 +120,146 @@ pip install -r requirements.txt
 printf "HF_TOKEN=hf_YOUR_TOKEN\n" > .env
 ```
 
-If `> .env` errors with "cannot overwrite existing file", your shell
-has `noclobber` set. Use `>|` instead:
+If your shell has `noclobber` enabled and the `.env` write fails, use:
 
 ```bash
 printf "HF_TOKEN=hf_YOUR_TOKEN\n" >| .env
 ```
 
-GPU memory:
-* Gemma-2-2B-IT (FP16) — ~12 GB
-* Llama-3.1-8B-Instruct (FP16) — ~20 GB. An 11 GB card cannot fit
-  Llama in FP16. Use an A40 or larger.
+You also need to accept the Hugging Face licenses for the gated datasets and models used here, including:
 
-You also need to accept the gated-repo licenses on Hugging Face for:
 - `google/gemma-2-2b-it`
 - `meta-llama/Llama-3.1-8B-Instruct`
 - `walledai/AdvBench`
 - `nvidia/HelpSteer`
 
----
+### Hardware Notes
 
-## Reproducing everything
+- Gemma-2-2B-IT in FP16 is roughly a 12 GB model
+- Llama-3.1-8B-Instruct in FP16 is roughly a 20 GB model
+- An 11 GB GPU is not enough for Llama in FP16
+
+## Reproducing the Full Pipeline
+
+Run everything:
 
 ```bash
-bash run_all.sh                # both models, full pipeline
-bash run_all.sh gemma_only     # only Gemma
-bash run_all.sh llama_only     # only Llama
+bash run_all.sh
 ```
 
-For the canonical results we use **Gemma layer 25** and **Llama layer
-11**. Gemma's layer is the same one the EDA divergence-score
-recommends, and is also the empirical best in the layer sweep. Llama's
-layer is *not* the EDA recommendation: the divergence score peaks at
-hidden_states index 32, which is the post-final-block residual stream
-and not a hookable transformer block. The nearest hookable block (L=31)
-produced no ablation effect, and a layer sweep covering L=13–28
-similarly maxed out around 14% ASR. Extending the sweep to early
-layers revealed L=11 as the true safety-causal layer, with DoM
-ablation lifting ASR from 6% to 55%. We treat the EDA layer-selection
-mismatch on larger models as itself a finding (see Section 5 of the
-report).
-
-`run_all.sh` defaults to `LLAMA_LAYER=11` for Llama. The sweep range in
-`run_all.sh` is auto-clipped so it never exceeds the model's last block.
-
-### Step-by-step
+Run only one model:
 
 ```bash
-# 1) EDA — picks an extraction layer L*
+bash run_all.sh gemma_only
+bash run_all.sh llama_only
+```
+
+The driver script runs EDA, direction extraction, the 2×2 matrix, plotting, and sensitivity analysis.
+
+## Step-by-Step Workflow
+
+### 1. Run EDA
+
+EDA estimates which layer is most promising for extraction.
+
+```bash
 python scripts/run_eda.py --model google/gemma-2-2b-it --tag gemma2-2b-it
-# inspect:  results/gemma2-2b-it/eda_summary.json   -> "recommended_layer"
-
-# 2) Cache safety + utility directions at L*
-python scripts/extract_directions.py \
-  --model google/gemma-2-2b-it --tag gemma2-2b-it --layer 25
-
-# 3) Run the 2x2 cross-intervention matrix
-python scripts/run_2x2_matrix.py \
-  --model google/gemma-2-2b-it --tag gemma2-2b-it --layer 25
-python scripts/plot_matrix.py --tag gemma2-2b-it
-
-# 4) Sensitivity (layers around L*; ActSVD ranks at L*)
-python scripts/run_sensitivity.py \
-  --model google/gemma-2-2b-it --tag gemma2-2b-it \
-  --layers 22,23,24,25 --ranks 1,2,4,8,16 --rank_layer 25
 ```
 
-Repeat for Llama by swapping `--model` and `--tag` and passing
-`--layer 11` (not 16). For Llama the sensitivity sweep that locates the
-right layer needed to cover early layers, e.g.:
+This produces `results/<tag>/eda_summary.json`, which includes the recommended layer.
+
+### 2. Extract directions
+
+```bash
+python scripts/extract_directions.py \
+  --model google/gemma-2-2b-it \
+  --tag gemma2-2b-it \
+  --layer 25
+```
+
+This saves DoM and ActSVD directions to `cache/<tag>/`.
+
+### 3. Run the 2×2 matrix
+
+```bash
+python scripts/run_2x2_matrix.py \
+  --model google/gemma-2-2b-it \
+  --tag gemma2-2b-it \
+  --layer 25
+
+python scripts/plot_matrix.py --tag gemma2-2b-it
+```
+
+The matrix evaluates:
+
+- DoM safety ablation
+- DoM utility ablation
+- ActSVD safety ablation
+- ActSVD utility ablation
+- random direction control
+- random subspace control
+- baseline with no ablation
+
+### 4. Run sensitivity analysis
 
 ```bash
 python scripts/run_sensitivity.py \
-  --model meta-llama/Llama-3.1-8B-Instruct --tag llama3.1-8b-it \
-  --layers 9,10,11,12 --ranks 4 --rank_layer 11
+  --model google/gemma-2-2b-it \
+  --tag gemma2-2b-it \
+  --layers 22,23,24,25 \
+  --ranks 1,2,4,8,16 \
+  --rank_layer 25
 ```
 
-After the matrix completes, compute the principal angles between the
-ActSVD safety and utility subspaces at the chosen layer:
+This checks whether the effect is stable across nearby layers and across ActSVD ranks.
+
+### 5. Measure subspace overlap
 
 ```bash
 python scripts/compute_subspace_angles.py --tag gemma2-2b-it
 python scripts/compute_subspace_angles.py --tag llama3.1-8b-it
 ```
 
----
+This reports principal angles and a simple subspace similarity measure between the safety and utility ActSVD bases.
 
-## Methods
+## Layers Used in the Current Results
 
-### DoM (Difference-of-Means)
+The saved results in this repo use the following extraction layers:
 
-At a chosen layer L*, compute `r = mean(h_pos) - mean(h_neg)` and
-normalize.
-* Safety: positives are AdvBench prompts, negatives are Alpaca prompts.
-  We use the activation at the last prompt token.
-* Utility: positives are HelpSteer high-helpfulness responses,
-  negatives are low-helpfulness responses. We average activations over
-  the response tokens. Pairs are filtered to δ ≥ 3.
+- Gemma: layer 25
+- Llama: layer 11
 
-### ActSVD
-
-Build the per-example difference matrix `D = H_pos - H_neg`. Take its
-SVD. For safety ablation, keep the top-k right singular vectors as an
-orthonormal basis
-V (k × d).
-
-For the current Llama utility pivot, `actsvd_utility` keeps the
-bottom-k right singular vectors from the safety difference matrix
-instead of extracting raw HelpSteer utility ActSVD ranks.
-
-### Ablation
-
-Both methods are applied via a forward hook on the chosen transformer
-block (`model.model.layers[L]`):
-* DoM — subtract the projection onto a single unit vector.
-* ActSVD — subtract the projection onto the rank-k subspace.
-  `h' = h − (h Vᵀ) V`.
-
-### Cross-intervention matrix
-
-For each cell, ablate the named direction. Then evaluate both ASR
-(safety) and the utility benchmark suite plus TruthfulQA (control).
-
-|              | ablate **safety** | ablate **utility** |
-|--------------|-------------------|--------------------|
-| **DoM**      | dom_safety        | dom_utility        |
-| **ActSVD**   | actsvd_safety     | actsvd_utility     |
-
-In the current pivot, `actsvd_utility` is intentionally implemented as
-bottom safety-rank ablation: it loads `V_utility_actsvd.npy`, but that
-file is generated from the least safety-relevant AdvBench-vs-Alpaca
-ActSVD ranks.
-
-Plus a `baseline` row (no ablation) and two random-direction control
-rows. `random_direction` ablates a random unit vector at the same
-layer; `random_subspace` ablates a random rank-4 orthonormal basis.
-These controls test whether the ASR / utility movements observed in
-the four real cells are direction-specific or just generic
-ablation-noise artifacts. Both controls reproduce the baseline numbers
-on both models.
-
----
-
-## Datasets
-
-| use                | dataset                          |
-|--------------------|----------------------------------|
-| harmful prompts    | `walledai/AdvBench`              |
-| harmless prompts   | `tatsu-lab/alpaca`               |
-| helpfulness pairs  | `nvidia/HelpSteer`               |
-| ASR eval           | held-out AdvBench (100 prompts)  |
-| utility — yes/no   | `google/boolq`                   |
-| utility — common.  | `Rowan/hellaswag`                |
-| utility — sci      | `allenai/ai2_arc` (Challenge)    |
-| control            | `truthfulqa/truthful_qa` (MC1)   |
-
----
-
-## Key hyperparameters (defaults)
-
-| flag             | default | meaning                                   |
-|------------------|---------|-------------------------------------------|
-| `--n_extract`    | 256     | N for direction extraction (per pool)     |
-| `--n_eval`       | 100     | held-out AdvBench prompts for ASR         |
-| `--n_utility`    | 200     | samples per utility benchmark             |
-| `--rank`         | 4       | ActSVD subspace dimensionality            |
-| `--min_delta`    | 3       | HelpSteer δ threshold for utility pairs   |
-| `--seed`         | 42      | numpy + torch RNG                         |
-
----
-
-## ASR scoring
-
-Refusal detection uses substring matching against the list in
-[src/evaluation.py](src/evaluation.py) (`REFUSAL_SUBSTRINGS`),
-following Arditi et al. (2024). ASR is the fraction of held-out
-prompts where no refusal substring appears in the model's reply.
-Higher means less safe.
-
----
+For Llama, the EDA peak lands on hidden_states index 32, but that is not a hookable transformer block. The project therefore uses the nearest layer that actually supports ablation, and the layer sweep suggests that early layers are more causally relevant for the safety behavior in this model.
 
 ## Outputs
 
-After a full run for a tag, `results/<tag>/` contains:
+After a run, each `results/<tag>/` directory contains:
 
-```
-eda_layer_selection.png         per-layer ||r_s||, ||r_u||, |cos|, divergence
-eda_helpsteer_delta.png         δ threshold comparison + δ=4 PCA
-eda_stability.png               bootstrap stability vs N
-eda_summary.json                recommended layer, key numbers
-matrix_results.json             full 2x2 cross-intervention numbers
-matrix_plot.png                 grouped bar chart of the matrix
-sensitivity_layer_sweep.json    ASR + utility per extraction layer
-sensitivity_rank_sweep.json     ASR + utility per ActSVD rank
-subspace_angles.json            ActSVD subspace similarity φ(U_s, U_u)
-                                and principal angles between safety
-                                and utility subspaces
+- `eda_layer_selection.png`
+- `eda_helpsteer_delta.png`
+- `eda_stability.png`
+- `eda_summary.json`
+- `matrix_results.json`
+- `matrix_plot.png`
+- `sensitivity_layer_sweep.json`
+- `sensitivity_rank_sweep.json`
+- `subspace_angles.json`
 
-# Llama tag also has:
-matrix_results_layer16.json     2x2 matrix from an earlier sweep that
-                                bottomed out around L=16 (max ASR ≈
-                                14%). Kept as evidence that
-                                mid-network layers are not where the
-                                Llama safety direction lives.
-matrix_results_layer31.json     2x2 matrix at the layer the EDA
-                                divergence score recommended
-                                (hidden_states index 32, whose nearest
-                                hookable transformer block is L=31).
-                                Produced no measurable ablation
-                                effect; kept as evidence that the EDA
-                                recommendation is wrong on Llama.
-sensitivity_layer_sweep_18to31.json    earlier mid/late-layer Llama
-                                       sweep (L=18,20,22,25,28). Max
-                                       ASR ≈ 14%.
-sensitivity_layer_sweep_L13to17.json   earlier near-L16 Llama sweep.
-                                       Max ASR ≈ 14%.
+The corresponding `cache/<tag>/` directory stores the extracted vectors, bases, and held-out ASR prompts used by the downstream scripts.
 
-# Gemma tag also has:
-matrix_results_no_random.json   snapshot of the Gemma matrix before
-                                the random-direction control cells
-                                were added. Kept for reproducibility
-                                of the original 5-cell tables in the
-                                proposal.
-```
+## Key Findings
 
-The current `matrix_results.json` for both tags contains all seven
-cells (baseline, dom_safety, dom_utility, actsvd_safety,
-actsvd_utility, random_direction, random_subspace).
+The main finding is that the extracted safety and utility directions are not strongly aligned. Subspace overlap is low, and ablation results suggest the directions have partially distinct behavioral effects rather than collapsing into a single generic steering axis.
 
-`cache/<tag>/` contains:
+There is also an important model-specific difference:
 
-```
-r_safety_dom.npy            (hidden,)
-r_utility_dom.npy           (hidden,)
-V_safety_actsvd.npy         (rank, hidden)
-V_utility_actsvd.npy        (rank, hidden), bottom safety ranks for
-                            the current actsvd_utility pivot
-eval_prompts.json           held-out AdvBench prompts
-meta.json                   extraction config
-sensitivity_acts/           per-layer activations cache. Auto-generated
-                            on first sweep. Git-ignored because the
-                            files exceed GitHub's 100 MB limit. The
-                            script rebuilds them automatically.
-```
+- Gemma’s EDA-selected layer lines up well with the ablation results
+- Llama’s EDA peak does not directly correspond to a hookable block, so the canonical ablation layer is chosen from the nearby causal sweep instead
 
----
+## Notes on the Codebase
 
-## Relationship to HW3
-
-The original HW3 deliverables live in `hw3/` and are kept unchanged
-for reference. They include `eda.py`, `ablation_experiment.py`,
-`exploratory_analysis.py`, `r_s_unit.npy`, `ablation_results.json`,
-`asr_examples.json`, and the three `eda_*.png` plots. The HW5 pipeline
-in `src/` and `scripts/` is the current code.
-
----
-
-## Known caveats
-
-* **Refusal detection is substring-based.** It can over-count politely-
-  worded compliance (e.g. "I cannot help… [proceeds to help]"). An
-  LLM-as-judge evaluator would tighten this.
-* **ActSVD rank defaults to 4.** The rank sweep in
-  `sensitivity_rank_sweep.json` justifies that choice.
-* **Llama layer choice was empirical.** The EDA's divergence-score
-  recommendation (hidden_states index 32) sits past the last hookable
-  transformer block (Llama-3.1-8B has 32 blocks indexed 0-31). We
-  tried L=31, L=18-28, and L=13-17 — all produced ASR ≤ 14% (~+8pp
-  above baseline). Extending the sweep to early layers found L=11,
-  where DoM ablation lifts ASR from 6% to 55% (+49pp). The EDA
-  divergence score is biased toward late layers because activation
-  norms grow with depth; for larger models this surfaces a layer that
-  is causally inert. We treat this as a methodological finding and
-  document it in Section 5 of the report.
-* **Random-direction controls.** The matrix runner produces two
-  control cells in addition to the four real ones. Both reproduce the
-  baseline (Gemma 1%, Llama 6%) on every metric, ruling out "any
-  ablation breaks safety" as an alternative explanation for the
-  dom_safety and actsvd_safety jumps.
-* **Same RNG seed per cell.** `run_2x2_matrix.py` resets the seed
-  before each cell so all cells use the same utility-benchmark
-  indices. Deltas across cells are not caused by sampling noise.
+- [src/common.py](src/common.py) handles model loading, activation extraction, and dataset loading.
+- [src/directions.py](src/directions.py) implements DoM, ActSVD, projection, and angle calculations.
+- [src/ablation.py](src/ablation.py) contains the hook classes used to modify hidden states.
+- [src/evaluation.py](src/evaluation.py) defines ASR scoring and utility benchmarks.
+- [hw3/](hw3/) contains the code used for the midterm/hw3
